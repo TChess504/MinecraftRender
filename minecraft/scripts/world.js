@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { SimplexNoise } from 'three/examples/jsm/math/SimplexNoise.js';
 import { RNG } from './rng.js';
-import { blocks } from './blocks.js';
+import { blocks, resources } from './blocks.js';
 
 
 const geometry = new THREE.BoxGeometry(1, 1, 1);
@@ -40,6 +40,7 @@ export class World extends THREE.Group {
   generate() {
     const rng = new RNG(this.params.seed);
     this.initialize();
+    this.generateResources(rng);
     this.generateTerrain(rng);
     this.generateMeshes();
   }
@@ -65,16 +66,42 @@ export class World extends THREE.Group {
     }
   }
 
+
+  /**
+   * Generates resources within the world
+   * @param {RNG} rng Random number generator
+   */
+  generateResources(rng) {
+    for (const resource of resources) {
+        console.log(resource);
+      const simplex = new SimplexNoise(rng);
+      for (let x = 0; x < this.size.width; x++) {
+        for (let y = 0; y < this.size.height; y++) {
+          for (let z = 0; z < this.size.width; z++) {
+           
+            const n = simplex.noise3d(
+              x / resource.scale.x, 
+              y / resource.scale.y, 
+              z / resource.scale.z);
+
+            if (n > resource.scarcity) {
+              this.setBlockId(x, y, z, resource.id);
+            }
+          }
+        }
+      }
+    }
+  }
   /**
    * Generates the world terrain data
    */
   generateTerrain(rng) {
-    const noiseGenerator = new SimplexNoise(rng);
+    const simplex = new SimplexNoise(rng);
     for (let x = 0; x < this.size.width; x++) {
       for (let z = 0; z < this.size.width; z++) {
 
         // Compute noise value at this x-z location
-        const value = noiseGenerator.noise(
+        const value = simplex.noise(
           x / this.params.terrain.scale,
           z / this.params.terrain.scale
         );
@@ -92,8 +119,8 @@ export class World extends THREE.Group {
         for (let y = 0; y < this.size.height; y++) {
           if (y === height) {
             this.setBlockId(x, y, z, blocks.grass.id);
-          // Fill in everything below with dirt
-          } else if (y < height) {
+          // Fill in blocks with dirt if they aren't already filled with something else
+          } else if (y < height && this.getBlock(x, y, z).id === blocks.empty.id) {
             this.setBlockId(x, y, z, blocks.dirt.id);
           // Clear everything above
           } else if (y > height) {
